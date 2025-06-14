@@ -1,0 +1,82 @@
+services:
+
+
+  mongo:
+    container_name: mongo
+    image: mongo:8.0.1
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongoadmin
+      MONGO_INITDB_ROOT_PASSWORD: secret
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo_data:/data/db
+
+
+  sentry_api:
+    image: sentry:latest
+    container_name: sentry_api
+    env_file:
+      - .env
+    depends_on:
+      - sentry_db
+      - sentry_redis
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./sentry.conf.py:/etc/sentry/sentry.conf.py
+
+
+  sentry_worker:
+    container_name: sentry_worker
+    image: sentry:latest
+    env_file:
+      - .env
+    depends_on:
+      - sentry_db
+      - sentry_redis
+    command: sentry run worker
+
+
+  sentry_cron:
+    image: sentry:latest
+    container_name: sentry_cron
+    env_file:
+      - .env
+    depends_on:
+      - sentry_db
+      - sentry_redis
+    command: sentry run cron
+
+
+  sentry_db:
+    container_name: sentry_db
+    image: postgres:latest
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${SENTRY_DB_USER}
+      - POSTGRES_PASSWORD=${SENTRY_DB_PASSWORD}
+      - POSTGRES_DB=${SENTRY_DB_NAME}
+    ports:
+      - ${SENTRY_POSTGRES_PORT}:${SENTRY_POSTGRES_PORT}
+    volumes:
+      - sentry_db_data:/var/lib/postgresql/data
+
+
+  sentry_redis:
+    image: redis:latest
+    restart: always
+    container_name: sentry_redis
+    command: redis-server --appendonly yes --protected-mode no --save 900 1 --save 300 10 --save 60 10000
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_PASSWORD=secret
+
+
+volumes:
+  mongo_data:
+  sentry_db_data:
+  redis_data:
